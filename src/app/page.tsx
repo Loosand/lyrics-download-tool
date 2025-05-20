@@ -13,7 +13,7 @@ import {
 
 export default function ImmersiveMusicPlayer() {
 	// 中文标题状态
-	const [albumTitle, setAlbumTitle] = useState<string>("认识你之前")
+	const [albumTitle, setAlbumTitle] = useState<string>("国蛋")
 
 	// 使用音频控制器Hook
 	const {

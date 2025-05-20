@@ -13,7 +13,7 @@ export function useAudioController(initialVolume: number = 0.7) {
 	const [coverImage, setCoverImage] = useState<string | null>(null)
 	const [wavesurfer, setWavesurfer] = useState<WaveSurfer | null>(null)
 	const [audioPath, setAudioPath] = useState<string>(
-		"/music/ITSOGOO - 认识你之前.mp3"
+		"/music/国蛋 - Like You.mp3"
 	)
 	const [metadata, setMetadata] = useState<{
 		title: string
@@ -22,10 +22,10 @@ export function useAudioController(initialVolume: number = 0.7) {
 		producer: string
 		visualDesigner: string
 	}>({
-		title: "认识你之前",
-		artist: "ITSOGOO",
-		producer: "Jiaming",
-		visualDesigner: "未知设计师",
+		title: "Like You",
+		artist: "国蛋",
+		producer: "杨国隽",
+		visualDesigner: "杨国隽",
 	})
 
 	const waveformRef = useRef<HTMLDivElement>(null)

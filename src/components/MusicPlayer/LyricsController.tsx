@@ -8,7 +8,7 @@ export function useLyricsController() {
 	>([])
 	const [currentLyric, setCurrentLyric] = useState<string>("")
 	const [isLyricsLoaded, setIsLyricsLoaded] = useState(false)
-	const [lyricsPath, setLyricsPath] = useState<string>("/music/认识你之前.lrc")
+	const [lyricsPath, setLyricsPath] = useState<string>("/music/Like You.lrc")
 
 	// 加载LRC歌词文件
 	useEffect(() => {
