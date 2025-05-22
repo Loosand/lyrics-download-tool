@@ -80,6 +80,11 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 	const [displayMode, setDisplayMode] = useState<
 		"original" | "translated" | "combined"
 	>("original")
+	// 添加分页相关状态
+	const [currentPage, setCurrentPage] = useState(0)
+	const [hasMore, setHasMore] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
+	const PAGE_SIZE = 12
 
 	// 添加搜索锁，防止短时间内重复搜索
 	const searchLockRef = useRef(false)
@@ -131,10 +136,15 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 
 		setIsLoading(true)
 		setHasSearched(true)
+		// 重置分页状态
+		setCurrentPage(0)
+		setHasMore(true)
 
 		try {
 			const response = await fetch(
-				`/api/music/search?keyword=${encodeURIComponent(keyword)}&limit=15`
+				`/api/music/search?keyword=${encodeURIComponent(
+					keyword
+				)}&limit=${PAGE_SIZE}&offset=0`
 			)
 			const data: SearchRoot = await response.json()
 
@@ -161,20 +171,78 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 					}
 				}) || []
 
-			console.log("data.result?.songs", data.result?.songs)
-			console.log("processedSongs", processedSongs)
-
 			setSearchResults(processedSongs)
+
+			// 检查是否还有更多结果
+			setHasMore(processedSongs.length === PAGE_SIZE)
 
 			if (processedSongs.length > 0) {
 				toast.success(`成功找到 ${processedSongs.length} 首歌曲`)
 			} else {
 				toast.info("未找到相关歌曲，请尝试其他关键词")
+				setHasMore(false)
 			}
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "搜索失败")
 		} finally {
 			setIsLoading(false)
+		}
+	}
+
+	// 加载更多歌曲
+	const handleLoadMore = async () => {
+		if (isLoadingMore || !hasMore) return
+
+		setIsLoadingMore(true)
+		const nextPage = currentPage + 1
+		const offset = nextPage * PAGE_SIZE
+
+		try {
+			const response = await fetch(
+				`/api/music/search?keyword=${encodeURIComponent(
+					searchKeyword
+				)}&limit=${PAGE_SIZE}&offset=${offset}`
+			)
+			const data: SearchRoot = await response.json()
+
+			if (!response.ok) {
+				if (response.status === 429) {
+					toast.error("请求频率过高，请稍后再试")
+				} else {
+					toast.error(`加载更多失败: ${data.message || "未知错误"}`)
+				}
+				return
+			}
+
+			// 处理picId字段
+			const processedSongs =
+				data.result?.songs?.map((song) => {
+					return {
+						...song,
+						album: {
+							...song.album,
+							picId: Number(song.album.picId) - 1,
+						},
+					}
+				}) || []
+
+			// 合并新结果与现有结果
+			setSearchResults((prev) => [...prev, ...processedSongs])
+			setCurrentPage(nextPage)
+
+			// 检查是否还有更多结果
+			setHasMore(processedSongs.length === PAGE_SIZE)
+
+			if (processedSongs.length > 0) {
+				toast.success(`加载了 ${processedSongs.length} 首新歌曲`)
+			} else {
+				toast.info("没有更多歌曲了")
+				setHasMore(false)
+			}
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "加载更多失败")
+		} finally {
+			setIsLoadingMore(false)
 		}
 	}
 
@@ -441,11 +509,15 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 						</CardHeader>
 						<CardContent>
 							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-								{searchResults.map((song) => (
-									<Card
-										key={song.id}
-										className="overflow-hidden py-0 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow duration-300">
-										<div className="aspect-square overflow-hidden">
+								{searchResults.map((song) => {
+									const picId = Number(song.album.picId) - 1
+									console.log(`${song.name} -  ${picId}`)
+
+									return (
+										<Card
+											key={song.id}
+											className="overflow-hidden py-0 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow duration-300">
+											{/* <div className="aspect-square overflow-hidden">
 											<img
 												src={`https://p1.music.126.net/dlsDdLopwJrE8JlWgWbaOA==/${
 													Number(song.album.picId) - 1
@@ -457,49 +529,62 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 														"https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg"
 												}}
 											/>
-										</div>
-										<CardContent className="flex-1 flex flex-col p-4 pt-0">
-											<h3
-												className="font-semibold text-lg line-clamp-1 mt-2"
-												title={song.name}>
-												{song.name}
-											</h3>
-											<p
-												className="text-sm text-gray-500 line-clamp-1"
-												title={song.artists
-													.map((artist) => artist.name)
-													.join(", ")}>
-												{song.artists.map((artist) => artist.name).join(", ")}
-											</p>
-											<p
-												className="text-xs text-gray-400 mt-1 line-clamp-1"
-												title={song.album.name}>
-												专辑：{song.album.name}
-											</p>
-											<p className="text-xs text-gray-400 mt-1">
-												{formatDuration(song.duration)}
-											</p>
-											<div className="mt-auto pt-3 space-y-2">
-												<Button
-													variant="outline"
-													size="sm"
-													className="w-full hover:bg-slate-100"
-													onClick={() => handleGetSongDetails(song.id)}>
-													查看详情
-												</Button>
-												<Link href={`/song/${song.id}`} className="block">
+										</div> */}
+											<CardContent className="flex-1 flex flex-col p-4 pt-0">
+												<h3
+													className="font-semibold text-lg line-clamp-1 mt-2"
+													title={song.name}>
+													{song.name}
+												</h3>
+												<p
+													className="text-sm text-gray-500 line-clamp-1"
+													title={song.artists
+														.map((artist) => artist.name)
+														.join(", ")}>
+													{song.artists.map((artist) => artist.name).join(", ")}
+												</p>
+												<p
+													className="text-xs text-gray-400 mt-1 line-clamp-1"
+													title={song.album.name}>
+													专辑：{song.album.name}
+												</p>
+												<p className="text-xs text-gray-400 mt-1">
+													{formatDuration(song.duration)}
+												</p>
+												<div className="mt-auto pt-3 space-y-2">
 													<Button
 														variant="outline"
 														size="sm"
-														className="w-full hover:bg-slate-100">
-														在新页面打开
+														className="w-full hover:bg-slate-100"
+														onClick={() => handleGetSongDetails(song.id)}>
+														查看详情
 													</Button>
-												</Link>
-											</div>
-										</CardContent>
-									</Card>
-								))}
+												</div>
+											</CardContent>
+										</Card>
+									)
+								})}
 							</div>
+
+							{/* 加载更多按钮 */}
+							{hasMore && (
+								<div className="mt-8 text-center">
+									<Button
+										onClick={handleLoadMore}
+										disabled={isLoadingMore}
+										variant="outline"
+										className="px-8">
+										{isLoadingMore ? (
+											<>
+												<span className="mr-2">加载中</span>
+												<span className="animate-pulse">...</span>
+											</>
+										) : (
+											"加载更多"
+										)}
+									</Button>
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				) : (
@@ -552,20 +637,21 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 												下载歌词(srt)
 											</Button>
 										</div>
-										<Button
-											size="sm"
-											onClick={() =>
-												handleDownloadCover(
-													songDetails.name,
-													songDetails.album?.picUrl
-												)
-											}
-											className="w-full mt-2">
-											下载封面图片
-										</Button>
 
 										{/* 歌曲详情页直接链接 */}
-										<div className="mt-4">
+										<div className="space-y-2">
+											<Button
+												size="sm"
+												onClick={() =>
+													handleDownloadCover(
+														songDetails.name,
+														songDetails.album?.picUrl
+													)
+												}
+												className="w-full mt-2">
+												下载封面图片
+											</Button>
+
 											<Link href={`/song/${songDetails.id}`} className="w-full">
 												<Button className="w-full bg-blue-600 hover:bg-blue-700">
 													在新页面打开
@@ -620,7 +706,7 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 																融合歌词 (原歌词和翻译):
 															</p>
 															<Textarea
-																className="max-h-[500px] text-sm"
+																className="h-[550px] text-sm"
 																value={combineDisplayLyrics(
 																	editedOriginalLyrics,
 																	editedTranslatedLyrics
@@ -642,7 +728,7 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 														</div>
 													) : (
 														<Textarea
-															className="max-h-[500px] text-sm"
+															className="h-[550px] text-sm"
 															value={
 																displayMode === "original"
 																	? editedOriginalLyrics
@@ -671,7 +757,7 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 											</TabsContent>
 
 											<TabsContent value="preview">
-												<div className="border rounded-md p-4 h-[500px] overflow-y-auto">
+												<div className="border rounded-md p-4 h-full overflow-y-auto">
 													<div className="text-sm whitespace-pre-line">
 														{displayMode === "combined" ? (
 															<div>

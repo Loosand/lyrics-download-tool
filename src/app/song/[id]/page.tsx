@@ -301,7 +301,7 @@ export default function SongDetailPage() {
 								className="w-full">
 								下载封面图片
 							</Button>
-							<Link href="/" className="block mt-4">
+							<Link href="/">
 								<Button variant="outline" className="w-full">
 									返回首页
 								</Button>
