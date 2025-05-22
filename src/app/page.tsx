@@ -1,165 +1,306 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
-	useAudioController,
-	useLyricsController,
-	PlayerControls,
-	AlbumInfo,
-	LyricsView,
-} from "@/components/MusicPlayer"
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card"
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
+import { Root as SearchRoot, Song } from "./cloud/types/search"
+import {
+	Root as SongRoot,
+	Song as SongDetail,
+	Artist,
+} from "./cloud/types/details"
+import { Root as LyricRoot } from "./cloud/types/lyric"
 
-export default function ImmersiveMusicPlayer() {
-	// 中文标题状态
-	const [albumTitle, setAlbumTitle] = useState<string>("国蛋")
+export default function Page() {
+	const [searchKeyword, setSearchKeyword] = useState("")
+	const [searchResults, setSearchResults] = useState<Song[]>([])
+	const [isLoading, setIsLoading] = useState(false)
+	const [songDetails, setSongDetails] = useState<SongDetail | null>(null)
+	const [lyrics, setLyrics] = useState<string>("")
+	const [translatedLyrics, setTranslatedLyrics] = useState<string>("")
+	const [dialogOpen, setDialogOpen] = useState(false)
 
-	// 使用音频控制器Hook
-	const {
-		isPlaying,
-		duration,
-		currentTime,
-		volume,
-		isMuted,
-		isLoaded,
-		coverImage,
-		wavesurfer,
-		metadata,
-		waveformRef,
-		togglePlay,
-		handleVolumeChange,
-		toggleMute,
-		handleSeek,
-		formatTime,
-		updateMetadata,
-	} = useAudioController()
+	// 搜索歌曲
+	const handleSearch = async () => {
+		if (!searchKeyword.trim()) return
 
-	// 使用歌词控制器Hook
-	const {
-		lyrics,
-		currentLyric,
-		isLyricsLoaded,
-		updateCurrentLyric,
-		extractMetadataFromLyrics,
-	} = useLyricsController()
-
-	// 使用useCallback包装事件处理函数，避免不必要的重新创建
-	const handleTimeUpdate = useCallback(
-		(time: number) => {
-			updateCurrentLyric(time)
-		},
-		[updateCurrentLyric]
-	)
-
-	// 将音频当前时间与歌词同步（只在wavesurfer首次加载时设置一次）
-	useEffect(() => {
-		if (wavesurfer) {
-			// 添加事件监听
-			wavesurfer.on("timeupdate", handleTimeUpdate)
-
-			// 清理函数，组件卸载时移除监听
-			return () => {
-				wavesurfer.un("timeupdate", handleTimeUpdate)
-			}
+		setIsLoading(true)
+		try {
+			const response = await fetch(
+				`/api/music/search?keyword=${encodeURIComponent(
+					searchKeyword
+				)}&limit=15`
+			)
+			const data: SearchRoot = await response.json()
+			setSearchResults(data.result.songs)
+		} catch (error) {
+			console.error("搜索失败:", error)
+		} finally {
+			setIsLoading(false)
 		}
-	}, [wavesurfer, handleTimeUpdate])
-
-	// 从歌词中提取元数据 - 仅在lyrics首次加载时执行一次
-	useEffect(() => {
-		if (lyrics.length > 0) {
-			const { lyricist, composer } = extractMetadataFromLyrics()
-
-			// 批量更新元数据，减少状态更新次数
-			const updates: Record<string, string> = {}
-			if (lyricist) updates.visualDesigner = lyricist
-			if (composer) updates.producer = composer
-
-			if (Object.keys(updates).length > 0) {
-				updateMetadata(updates)
-			}
-		}
-	}, [lyrics, extractMetadataFromLyrics, updateMetadata])
-
-	// 使用useCallback包装处理函数，防止频繁重新创建
-	const handleAlbumTitleChange = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			setAlbumTitle(e.target.value)
-		},
-		[]
-	)
-
-	const handleProducerChange = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			updateMetadata({ producer: e.target.value })
-		},
-		[updateMetadata]
-	)
-
-	const handleVisualDesignerChange = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			updateMetadata({ visualDesigner: e.target.value })
-		},
-		[updateMetadata]
-	)
-
-	// 使用useMemo创建传递给子组件的props，避免不必要的重新渲染
-	const playerControlsProps = {
-		isPlaying,
-		currentTime,
-		duration,
-		volume,
-		isMuted,
-		isLoaded,
-		togglePlay,
-		handleVolumeChange,
-		toggleMute,
-		handleSeek,
-		formatTime,
 	}
 
-	const lyricsViewProps = {
-		title: metadata.title,
-		albumTitle,
-		currentLyric,
-		isLyricsLoaded,
-		onAlbumTitleChange: handleAlbumTitleChange,
+	// 获取歌曲详情
+	const handleGetSongDetails = async (songId: number) => {
+		console.log("获取歌曲详情，ID:", songId)
+		try {
+			// 获取歌曲详情
+			console.log("请求详情API开始")
+			const detailsResponse = await fetch(`/api/music/details?id=${songId}`)
+			const detailsData: SongRoot = await detailsResponse.json()
+			console.log("详情API返回:", detailsData)
+			setSongDetails(detailsData.songs[0])
+
+			// 获取歌词
+			console.log("请求歌词API开始")
+			const lyricsResponse = await fetch(`/api/music/lyrics?id=${songId}`)
+			const lyricsData: LyricRoot = await lyricsResponse.json()
+			console.log("歌词API返回:", lyricsData)
+			setLyrics(lyricsData.lrc?.lyric || "暂无歌词")
+			setTranslatedLyrics(lyricsData.tlyric?.lyric || "")
+
+			setDialogOpen(true)
+		} catch (error) {
+			console.error("获取歌曲详情失败:", error)
+			alert("获取歌曲详情失败，请查看控制台日志")
+		} finally {
+		}
 	}
 
-	const albumInfoProps = {
-		artist: metadata.artist,
-		producer: metadata.producer,
-		visualDesigner: metadata.visualDesigner,
-		coverImage,
-		onProducerChange: handleProducerChange,
-		onVisualDesignerChange: handleVisualDesignerChange,
+	// 下载MP3文件
+	const handleDownloadMp3 = (songId: number, songName: string) => {
+		const link = document.createElement("a")
+		link.href = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`
+		link.download = `${songName}.mp3`
+		link.target = "_blank"
+		document.body.appendChild(link)
+		link.click()
+		document.body.removeChild(link)
+	}
+
+	// 下载歌词
+	const handleDownloadLyrics = (songName: string) => {
+		const element = document.createElement("a")
+		let text = lyrics
+
+		if (translatedLyrics) {
+			text += "\n\n-- 翻译歌词 --\n\n" + translatedLyrics
+		}
+
+		const file = new Blob([text], { type: "text/plain" })
+		element.href = URL.createObjectURL(file)
+		element.download = `${songName}.lrc`
+		document.body.appendChild(element)
+		element.click()
+		document.body.removeChild(element)
+	}
+
+	// 格式化时间（毫秒转为分:秒）
+	const formatDuration = (duration: number) => {
+		const minutes = Math.floor(duration / 1000 / 60)
+		const seconds = Math.floor((duration / 1000) % 60)
+		return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`
+	}
+
+	// 格式化歌词显示
+	const formatLyrics = (lyricText: string) => {
+		return lyricText
+			.split("\n")
+			.map((line) => {
+				// 移除时间标记 [00:00.000]
+				return line.replace(/\[\d+:\d+\.\d+\]/g, "")
+			})
+			.filter((line) => line.trim() !== "")
+			.join("\n")
 	}
 
 	return (
-		<div className="relative w-full min-h-screen bg-blue-600 text-white overflow-hidden">
-			{/* 浮动播放列表 */}
+		<>
+			<header className="border-b">
+				<div className="container mx-auto py-4 px-4">
+					<nav className="flex items-center justify-between">
+						<Link href="/" className="text-xl font-bold">
+							音乐播放器
+						</Link>
+						<div className="flex gap-4">
+							<Link href="/player" className="hover:underline">
+								播放器
+							</Link>
+							<Link href="/sampling" className="hover:underline">
+								取样
+							</Link>
+						</div>
+					</nav>
+				</div>
+			</header>
 
-			{/* 主要内容 */}
-			<div className="relative flex flex-col md:flex-row h-screen">
-				{/* 左侧区域 - 标题和歌词 */}
-				<div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col">
-					{/* 歌曲标题和歌词 */}
-					<LyricsView {...lyricsViewProps} />
-
-					{/* 波形图 */}
-					<div className="my-8">
-						<div
-							ref={waveformRef}
-							className="w-full rounded-md overflow-hidden"></div>
-					</div>
-
-					{/* 底部控制区 */}
-					<PlayerControls {...playerControlsProps} />
+			<div className="container mx-auto py-8 px-4">
+				<div className="flex gap-2 mb-6">
+					<Input
+						type="text"
+						placeholder="输入歌曲名称或歌手"
+						value={searchKeyword}
+						onChange={(e) => setSearchKeyword(e.target.value)}
+						onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+						className="flex-1"
+					/>
+					<Button onClick={handleSearch} disabled={isLoading}>
+						{isLoading ? "搜索中..." : "搜索"}
+					</Button>
 				</div>
 
-				{/* 右侧区域 - 专辑封面和信息 */}
-				<AlbumInfo {...albumInfoProps} />
+				{searchResults.length > 0 && (
+					<Card>
+						<CardHeader>
+							<CardTitle>搜索结果</CardTitle>
+							<CardDescription>
+								找到 {searchResults.length} 首歌曲
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+								{searchResults.map((song) => (
+									<Card
+										key={song.id}
+										className="overflow-hidden py-0 h-full flex flex-col">
+										<div className="aspect-square overflow-hidden">
+											<img
+												src={`https://music.163.com/api/img/blur/${song.album.id}`}
+												alt={song.album.name}
+												className="w-full h-full object-cover transition-transform hover:scale-105"
+												onError={(e) => {
+													e.currentTarget.src =
+														"https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg"
+												}}
+											/>
+										</div>
+										<CardContent className="flex-1 flex flex-col p-4 pt-0">
+											<h3
+												className="font-semibold text-lg line-clamp-1"
+												title={song.name}>
+												{song.name}
+											</h3>
+											<p
+												className="text-sm text-gray-500 line-clamp-1"
+												title={song.artists
+													.map((artist) => artist.name)
+													.join(", ")}>
+												{song.artists.map((artist) => artist.name).join(", ")}
+											</p>
+											<p
+												className="text-xs text-gray-400 mt-1 line-clamp-1"
+												title={song.album.name}>
+												专辑：{song.album.name}
+											</p>
+											<p className="text-xs text-gray-400 mt-1">
+												{formatDuration(song.duration)}
+											</p>
+											<div className="mt-auto pt-3">
+												<Button
+													variant="outline"
+													size="sm"
+													className="w-full"
+													onClick={() => handleGetSongDetails(song.id)}>
+													查看详情
+												</Button>
+											</div>
+										</CardContent>
+									</Card>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
+				<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+					<DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+						{songDetails && (
+							<>
+								<DialogHeader>
+									<DialogTitle>{songDetails.name}</DialogTitle>
+									<DialogDescription>
+										{songDetails.artists
+											?.map((artist: Artist) => artist.name)
+											.join(", ")}{" "}
+										- {songDetails.album?.name}
+									</DialogDescription>
+								</DialogHeader>
+
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+									<div>
+										<div className="rounded-md overflow-hidden">
+											<img
+												src={songDetails.album?.picUrl}
+												alt={songDetails.album?.name}
+												className="w-full h-auto object-cover"
+											/>
+										</div>
+
+										<div className="flex gap-2 mt-4">
+											<Button
+												onClick={() =>
+													handleDownloadMp3(songDetails.id, songDetails.name)
+												}
+												className="flex-1">
+												下载 MP3
+											</Button>
+											<Button
+												variant="outline"
+												onClick={() => handleDownloadLyrics(songDetails.name)}
+												className="flex-1">
+												下载歌词
+											</Button>
+										</div>
+
+										<div className="mt-4">
+											<Link
+												href={`/player?id=${songDetails.id}`}
+												className="w-full">
+												<Button className="w-full bg-blue-600 hover:bg-blue-700">
+													在播放器中打开
+												</Button>
+											</Link>
+										</div>
+									</div>
+
+									<div>
+										<h3 className="text-lg font-semibold mb-2">歌词</h3>
+										<div className="max-h-[300px] overflow-y-auto border rounded-md p-4 text-sm whitespace-pre-line">
+											{formatLyrics(lyrics)}
+
+											{translatedLyrics && (
+												<>
+													<Separator className="my-4" />
+													<p className="text-muted-foreground font-medium mb-2">
+														翻译歌词:
+													</p>
+													{formatLyrics(translatedLyrics)}
+												</>
+											)}
+										</div>
+									</div>
+								</div>
+							</>
+						)}
+					</DialogContent>
+				</Dialog>
 			</div>
-		</div>
+		</>
 	)
 }
