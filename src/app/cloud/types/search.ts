@@ -2,6 +2,7 @@
 export interface Root {
 	result: Result
 	code: number
+	message: string
 }
 
 export interface Result {

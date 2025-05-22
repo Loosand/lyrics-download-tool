@@ -3,6 +3,7 @@ export interface Root {
 	songs: Song[]
 	equalizers: object
 	code: number
+	message: string
 }
 
 export interface Song {

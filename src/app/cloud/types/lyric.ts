@@ -7,6 +7,7 @@ export interface Root {
 	lrc: Lrc
 	tlyric: Tlyric
 	code: number
+	message: string
 }
 
 export interface TransUser {
