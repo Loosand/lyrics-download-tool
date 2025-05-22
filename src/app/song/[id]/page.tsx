@@ -355,7 +355,7 @@ export default function SongDetailPage() {
 												融合歌词 (原歌词和翻译):
 											</p>
 											<Textarea
-												className="max-h-[500px] min-h-[500px] text-sm"
+												className="h-[550px] text-sm"
 												value={combineDisplayLyrics(
 													editedOriginalLyrics,
 													editedTranslatedLyrics
@@ -375,7 +375,7 @@ export default function SongDetailPage() {
 										</div>
 									) : (
 										<Textarea
-											className="max-h-[500px] min-h-[500px] text-sm"
+											className="h-[550px] text-sm"
 											value={
 												displayMode === "original"
 													? editedOriginalLyrics
@@ -402,7 +402,7 @@ export default function SongDetailPage() {
 							</TabsContent>
 
 							<TabsContent value="preview">
-								<div className="border rounded-md p-4 h-[500px] overflow-y-auto">
+								<div className="border rounded-md p-4 h-[550px] overflow-y-auto">
 									<div className="text-sm whitespace-pre-line">
 										{displayMode === "combined" ? (
 											<div>

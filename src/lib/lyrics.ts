@@ -55,14 +55,78 @@ export const formatLrcFile = (original: string, translated: string): string => {
 	return result.join("\n")
 }
 
+// 格式化LRC文件内容为合并式双语格式（原文/翻译在同一行）
+export const formatLrcFileMerged = (
+	original: string,
+	translated: string,
+	separator: string = " / "
+): string => {
+	if (!translated) return original
+
+	// 解析原歌词和翻译歌词，提取时间戳和文本
+	const parseLines = (lyrics: string) => {
+		const lines = lyrics.split("\n").filter((line) => line.trim() !== "")
+		const result: { timeStr: string; text: string }[] = []
+
+		for (const line of lines) {
+			const timeMatches = Array.from(line.matchAll(/\[(\d+):(\d+)\.(\d+)\]/g))
+			if (timeMatches.length === 0) continue // 跳过没有时间戳的行
+
+			// 提取最后一个时间戳之后的文本部分
+			const lastMatch = timeMatches[timeMatches.length - 1]
+			const text = line.substring(lastMatch.index + lastMatch[0].length).trim()
+
+			// 将所有时间戳与文本配对
+			for (const match of timeMatches) {
+				const timeStr = match[0]
+				result.push({ timeStr, text })
+			}
+		}
+
+		return result
+	}
+
+	const origLines = parseLines(original)
+	const transLines = parseLines(translated)
+
+	// 创建时间戳映射，用于匹配原文和翻译
+	const timeMap = new Map()
+
+	// 首先添加原文行到时间映射
+	origLines.forEach((line) => {
+		timeMap.set(line.timeStr, { original: line.text, translated: "" })
+	})
+
+	// 尝试匹配翻译行
+	transLines.forEach((line) => {
+		if (timeMap.has(line.timeStr)) {
+			timeMap.get(line.timeStr).translated = line.text
+		}
+	})
+
+	// 生成合并式双语LRC
+	const result: string[] = []
+	timeMap.forEach((value, timeStr) => {
+		if (value.translated) {
+			// 如果有翻译，合并原文和翻译
+			result.push(`${timeStr}${value.original}${separator}${value.translated}`)
+		} else {
+			// 如果没有翻译，只使用原文
+			result.push(`${timeStr}${value.original}`)
+		}
+	})
+
+	return result.join("\n")
+}
+
 // 格式化SRT文件内容
 export const formatSrtFile = (original: string, translated: string): string => {
 	// 解析歌词行和时间戳
 	const parseLrcLines = (lyrics: string) => {
 		const lines = lyrics.split("\n").filter((line) => line.trim() !== "")
 		const result: {
+			timeMs: number // 毫秒时间戳，用于排序
 			startTime: string
-			endTime: string
 			text: string
 		}[] = []
 
@@ -75,30 +139,56 @@ export const formatSrtFile = (original: string, translated: string): string => {
 			const ms = parseInt(match[3])
 			const text = match[4].trim()
 
-			// SRT时间格式 00:00:00,000
-			const startTime = `${min.toString().padStart(2, "0")}:${sec
-				.toString()
-				.padStart(2, "0")}:00,${ms.toString().padStart(3, "0")}`
+			// 计算总毫秒数用于排序
+			const timeMs = min * 60000 + sec * 1000 + ms
 
-			// 假设每条字幕显示3秒
-			const endMin = Math.floor((min * 60 + sec + 3) / 60)
-			const endSec = (min * 60 + sec + 3) % 60
-			const endTime = `${endMin.toString().padStart(2, "0")}:${endSec
+			// 转换为标准SRT时间格式: 小时:分钟:秒,毫秒
+			const startTime = `00:${min.toString().padStart(2, "0")}:${sec
 				.toString()
-				.padStart(2, "0")}:00,${ms.toString().padStart(3, "0")}`
+				.padStart(2, "0")},${ms.toString().padStart(3, "0")}`
 
 			result.push({
+				timeMs,
 				startTime,
-				endTime,
 				text,
 			})
 		}
 
-		return result
+		// 按时间排序
+		return result.sort((a, b) => a.timeMs - b.timeMs)
 	}
 
 	const origEntries = parseLrcLines(original)
 	const transEntries = parseLrcLines(translated)
+
+	// 计算每个字幕条目的结束时间
+	const processedEntries = origEntries.map((entry, index, array) => {
+		let endTime: string
+
+		if (index < array.length - 1) {
+			// 如果不是最后一个条目，结束时间是下一个条目的开始时间
+			endTime = array[index + 1].startTime
+		} else {
+			// 如果是最后一个条目，结束时间是开始时间加5秒
+			const timeMs = entry.timeMs + 5000 // 加5秒
+			const totalSeconds = Math.floor(timeMs / 1000)
+			const hours = Math.floor(totalSeconds / 3600)
+			const minutes = Math.floor((totalSeconds % 3600) / 60)
+			const seconds = totalSeconds % 60
+			const milliseconds = timeMs % 1000
+
+			endTime = `${hours.toString().padStart(2, "0")}:${minutes
+				.toString()
+				.padStart(2, "0")}:${seconds.toString().padStart(2, "0")},${milliseconds
+				.toString()
+				.padStart(3, "0")}`
+		}
+
+		return {
+			...entry,
+			endTime,
+		}
+	})
 
 	// 将翻译字幕与原文字幕匹配
 	const subtitles: {
@@ -116,8 +206,8 @@ export const formatSrtFile = (original: string, translated: string): string => {
 			transMap.set(entry.startTime, entry.text)
 		})
 
-		for (let i = 0; i < origEntries.length; i++) {
-			const orig = origEntries[i]
+		for (let i = 0; i < processedEntries.length; i++) {
+			const orig = processedEntries[i]
 			const trans = transMap.get(orig.startTime) || ""
 
 			// 添加字幕条目
@@ -130,12 +220,12 @@ export const formatSrtFile = (original: string, translated: string): string => {
 		}
 	} else {
 		// 只有原文
-		for (let i = 0; i < origEntries.length; i++) {
+		for (let i = 0; i < processedEntries.length; i++) {
 			subtitles.push({
 				index: i + 1,
-				startTime: origEntries[i].startTime,
-				endTime: origEntries[i].endTime,
-				text: origEntries[i].text,
+				startTime: processedEntries[i].startTime,
+				endTime: processedEntries[i].endTime,
+				text: processedEntries[i].text,
 			})
 		}
 	}
@@ -286,7 +376,9 @@ export const downloadLyrics = (
 	songName: string,
 	type: string,
 	original: string,
-	translated: string
+	translated: string,
+	lrcFormat: "separated" | "merged" = "separated",
+	separator: string = " / "
 ): void => {
 	const element = document.createElement("a")
 
@@ -294,7 +386,11 @@ export const downloadLyrics = (
 
 	// 根据类型选择合适的格式
 	if (type === "lrc") {
-		text = formatLrcFile(original, translated)
+		// 根据选择的格式生成LRC
+		text =
+			lrcFormat === "merged"
+				? formatLrcFileMerged(original, translated, separator)
+				: formatLrcFile(original, translated)
 	} else if (type === "srt") {
 		text = formatSrtFile(original, translated)
 	}

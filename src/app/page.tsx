@@ -311,7 +311,8 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 				songName,
 				type,
 				editedOriginalLyrics,
-				editedTranslatedLyrics
+				editedTranslatedLyrics,
+				type === "lrc" ? "separated" : "merged" // 仅LRC格式需要指定格式类型
 			)
 			toast.success(`歌词已保存为${type}格式`)
 		} catch (error) {
@@ -617,25 +618,27 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 												className="w-full h-auto object-cover"
 											/>
 										</div>
-										<div className="flex gap-2 mt-4">
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() =>
-													handleDownloadLyrics(songDetails.name, "lrc")
-												}
-												className="flex-1 hover:bg-slate-100">
-												下载歌词(lrc)
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() =>
-													handleDownloadLyrics(songDetails.name, "srt")
-												}
-												className="flex-1 hover:bg-slate-100">
-												下载歌词(srt)
-											</Button>
+										<div className="flex flex-col gap-2 mt-4">
+											<div className="flex gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														handleDownloadLyrics(songDetails.name, "lrc")
+													}
+													className="flex-1 hover:bg-slate-100">
+													下载歌词(lrc)
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														handleDownloadLyrics(songDetails.name, "srt")
+													}
+													className="flex-1 hover:bg-slate-100">
+													下载歌词(srt)
+												</Button>
+											</div>
 										</div>
 
 										{/* 歌曲详情页直接链接 */}
@@ -757,7 +760,7 @@ function PageContent({ initialKeyword, initialSongId }: PageContentProps) {
 											</TabsContent>
 
 											<TabsContent value="preview">
-												<div className="border rounded-md p-4 h-full overflow-y-auto">
+												<div className="border rounded-md p-4 h-[550px] overflow-y-auto">
 													<div className="text-sm whitespace-pre-line">
 														{displayMode === "combined" ? (
 															<div>
